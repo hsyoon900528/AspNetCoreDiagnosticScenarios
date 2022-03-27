@@ -141,6 +141,7 @@ The `IHttpContextAccessor.HttpContext` will return the `HttpContext` of the acti
 
 
 ❌ **BAD** This example stores the HttpContext in a field then attempts to use it later.
+❌ **BAD** 이 예제는 HttpContext를 필드에 저장한 다음 나중에 사용하려고 시도합니다. 
 
 ```C#
 public class MyType
@@ -162,8 +163,9 @@ public class MyType
 ```
 
 The above logic will likely capture a null or bogus HttpContext in the constructor for later use.
-
+위의 논리는 나중에 사용하기 위해 생성자에서 null 또는 가짜 HttpContext를 캡처할 가능성이 높습니다. 
 :white_check_mark: **GOOD** This example stores the IHttpContextAccesor itself in a field and uses the HttpContext field at the correct time (checking for null).
+:white_check_mark: **GOOD** 이 예제는 IHttpContextAccesor 자체를 필드에 저장하고 정확한 시간에 HttpContext 필드를 사용합니다(null 확인). 
 
 ```C#
 public class MyType
@@ -186,10 +188,14 @@ public class MyType
 ```
 
 ## Do not access the HttpContext from multiple threads in parallel. It is not thread safe.
+## 여러 스레드에서 병렬로 HttpContext에 액세스하지 마십시오. 스레드로부터 안전하지 않습니다. 191
 
 The `HttpContext` is *NOT* threadsafe. Accessing it from multiple threads in parallel can cause corruption resulting in undefined behavior (hangs, crashes, data corruption).
+`HttpContext`는 스레드로부터 안전하지 *않습니다*. 여러 스레드에서 병렬로 액세스하면 정의되지 않은 동작(정지, 충돌, 데이터 손상)이 발생하는 손상이 발생할 수 있습니다.
+
 
 ❌ **BAD** This example makes 3 parallel requests and logs the incoming request path before and after the outgoing http request. This accesses the request path from multiple threads potentially in parallel.
+❌ **BAD** 이 예제는 3개의 병렬 요청을 만들고 나가는 http 요청 전후에 들어오는 요청 경로를 기록합니다. 이것은 잠재적으로 병렬로 여러 스레드의 요청 경로에 액세스합니다. 198
 
 ```C#
 public class AsyncController : Controller
@@ -230,6 +236,7 @@ public class AsyncController : Controller
 ```
 
 :white_check_mark: **GOOD** This example copies all data from the incoming request before making the 3 parallel requests.
+:white_check_mark: **GOOD** 이 예는 3개의 병렬 요청을 하기 전에 들어오는 요청의 모든 데이터를 복사합니다. 239
 
 ```C#
 public class AsyncController : Controller
@@ -271,10 +278,13 @@ public class AsyncController : Controller
 ```
 
 ## Do not use the HttpContext after the request is complete
+## Do not use the HttpContext after the request is complete
 
 The `HttpContext` is only valid as long as there is an active http request in flight. The entire ASP.NET Core pipeline is an asynchronous chain of delegates that executes every request. When the `Task` returned from this chain completes, the `HttpContext` is recycled. 
+`HttpContext`는 실행 중인 활성 http 요청이 있는 동안에만 유효합니다. 전체 ASP.NET Core 파이프라인은 모든 요청을 실행하는 대리자의 비동기 체인입니다. 이 체인에서 반환된 `Task`가 완료되면 `HttpContext`가 재활용됩니다.
 
 ❌ **BAD** This example uses async void (which is a **ALWAYS** bad in ASP.NET Core applications) and as a result, accesses the `HttpResponse` after the http request is complete. It will crash the process as a result.
+❌ **BAD** 이 예제는 async void(ASP.NET Core 애플리케이션에서 **항상** 나쁜 것임)를 사용하므로 결과적으로 http 요청이 완료된 후 `HttpResponse`에 액세스합니다. 결과적으로 프로세스가 중단됩니다. 287
 
 ```C#
 public class AsyncVoidController : Controller
@@ -291,6 +301,7 @@ public class AsyncVoidController : Controller
 ```
 
 :white_check_mark: **GOOD** This example returns a `Task` to the framework so the http request doesn't complete until the entire action completes.
+:white_check_mark: **GOOD** 이 예제는 프레임워크에 `Task`를 반환하므로 전체 작업이 완료될 때까지 http 요청이 완료되지 않습니다. 304
 
 ```C#
 public class AsyncController : Controller
@@ -306,9 +317,11 @@ public class AsyncController : Controller
 ```
 
 ## Do not capture the HttpContext in background threads
+## 백그라운드 스레드에서 HttpContext를 캡처하지 마십시오. 320
 
 ❌ **BAD** This example shows a closure is capturing the HttpContext from the Controller property. This is bad because this work item could run
 outside of the request scope and as a result, could lead to reading a bogus HttpContext.
+❌ **BAD** 이 예제는 클로저가 Controller 속성에서 HttpContext를 캡처하는 것을 보여줍니다. 이 작업 항목이 실행될 수 있으므로 좋지 않습니다. 323 요청 범위를 벗어나 결과적으로 가짜 HttpContext를 읽을 수 있습니다.
 
 ```C#
 [HttpGet("/fire-and-forget-1")]
@@ -331,6 +344,7 @@ public IActionResult FireAndForget1()
 
 :white_check_mark: **GOOD** This example copies the data required in the background task during the request explictly and does not reference
 anything from the controller itself.
+:white_check_mark: **GOOD** 이 예제는 요청 중에 백그라운드 작업에 필요한 데이터를 명시적으로 복사하고 참조하지 않습니다. 346 컨트롤러 자체의 모든 것.
 
 ```C#
 [HttpGet("/fire-and-forget-3")]
@@ -350,9 +364,11 @@ public IActionResult FireAndForget3()
 ```
 
 ## Do not capture services injected into the controllers on background threads
+## 백그라운드 스레드에서 컨트롤러에 주입된 서비스를 캡처하지 마십시오. 367
 
 ❌ **BAD** This example shows a closure is capturing the DbContext from the Controller action parameter. This is bad because this work item could run
 outside of the request scope and the PokemonDbContext is scoped to the request. As a result, this will end up with an ObjectDisposedException.
+❌ **BAD** 이 예는 클로저가 컨트롤러 작업 매개변수에서 DbContext를 캡처하는 것을 보여줍니다. 이 작업 항목이 요청 범위 외부에서 실행될 수 있고 PokemonDbContext 범위가 요청으로 지정되기 때문에 이는 좋지 않습니다. 결과적으로 이것은 ObjectDisposedException으로 끝납니다.
 
 ```C#
 [HttpGet("/fire-and-forget-1")]
@@ -372,8 +388,8 @@ public IActionResult FireAndForget1([FromServices]PokemonDbContext context)
 }
 ```
 
-:white_check_mark: **GOOD** This example injects an `IServiceScopeFactory` and creates a new dependency injection scope in the background thread and does not reference
-anything from the controller itself.
+:white_check_mark: **GOOD** This example injects an `IServiceScopeFactory` and creates a new dependency injection scope in the background thread and does not reference anything from the controller itself.
+:white_check_mark: **GOOD** 이 예제는 `IServiceScopeFactory`를 주입하고 백그라운드 스레드에 새 종속성 주입 범위를 생성하며 컨트롤러 자체에서 아무 것도 참조하지 않습니다. 392
 
 ```C#
 [HttpGet("/fire-and-forget-3")]
@@ -401,10 +417,13 @@ public IActionResult FireAndForget3([FromServices]IServiceScopeFactory serviceSc
 ```
 
 ## Avoid adding headers after the HttpResponse has started
+## HttpResponse가 시작된 후 헤더를 추가하지 마십시오. 420
 
 ASP.NET Core does not buffer the http response body. This means that the very first time the response is written, the headers are sent along with that chunk of the body to the client. When this happens, it's no longer possible to change response headers.
+ASP.NET Core는 http 응답 본문을 버퍼링하지 않습니다. 이것은 응답이 처음 작성될 때 헤더가 본문의 해당 청크와 함께 클라이언트로 전송됨을 의미합니다. 이 경우 더 이상 응답 헤더를 변경할 수 없습니다.
 
 ❌ **BAD** This logic tries to add response headers after the response has already started.
+❌ **BAD** 이 논리는 응답이 이미 시작된 후에 응답 헤더를 추가하려고 합니다. 426
 
 ```C#
 app.Use(async (next, context) =>
@@ -419,6 +438,7 @@ app.Use(async (next, context) =>
 ```
 
 :white_check_mark: **GOOD** This example checks if the http response has started before writing to the body.
+:white_check_mark: **GOOD** 이 예제는 본문에 쓰기 전에 http 응답이 시작되었는지 확인합니다. 441
 
 ```C#
 app.Use(async (next, context) =>
@@ -436,8 +456,10 @@ app.Use(async (next, context) =>
 ```
 
 :white_check_mark: **GOOD** This examples uses `HttpResponse.OnStarting` to set the headers before the response headers are flushed to the client.
+:white_check_mark: **GOOD** 이 예제는 응답 헤더가 클라이언트로 플러시되기 전에 헤더를 설정하기 위해 `HttpResponse.OnStarting`을 사용합니다. 459
 
 It allows you to register a callback that will be invoked just before response headers are written to the client. It gives you the ability to append or override headers just in time, without requiring knowledge of the next middleware in the pipeline.
+응답 헤더가 클라이언트에 작성되기 직전에 호출될 콜백을 등록할 수 있습니다. 파이프라인의 다음 미들웨어에 대한 지식 없이도 적시에 헤더를 추가하거나 재정의할 수 있는 기능을 제공합니다.
 
 ```C#
 app.Use(async (next, context) =>
