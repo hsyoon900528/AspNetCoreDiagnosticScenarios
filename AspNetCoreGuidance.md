@@ -14,12 +14,16 @@
 # ASP.NET Core Guidance
 
 ASP.NET Core is a cross-platform, high-performance, open-source framework for building modern, cloud-based, Internet-connected applications. This guide captures some of the common pitfalls and practices when writing scalable server applications.
+ASP.NET Core는 최신 클라우드 기반 인터넷 연결 응용 프로그램을 구축하기 위한 플랫폼 간 고성능 오픈 소스 프레임워크입니다. 이 가이드는 확장 가능한 서버 응용 프로그램을 작성할 때 몇 가지 일반적인 함정과 사례를 포착합니다.
 
 ## Avoid using synchronous Read/Write overloads on HttpRequest.Body and HttpResponse.Body
+HttpRequest.Body 및 HttpResponse.Body에서 동기 읽기/쓰기 오버로드를 사용하지 마세요.
 
 All IO in ASP.NET Core is asynchronous. Servers implement the `Stream` interface which has both synchronous and asynchronous overloads. The asynchronous ones should be preferred to avoid blocking thread pool threads (this could lead to thread pool starvation).
+ASP.NET Core의 모든 IO는 비동기식입니다. 서버는 동기 및 비동기 오버로드가 모두 있는 Stream 인터페이스를 구현합니다. 스레드 풀 스레드를 차단하지 않으려면 비동기식 스레드를 선호해야 합니다(이는 스레드 풀 기아 상태로 이어질 수 있음).
 
 ❌ **BAD** This example uses the `StreamReader.ReadToEnd` and as a result blocks the current thread to wait for the result. This is an example of [sync over async](AsyncGuidance.md#avoid-using-taskresult-and-taskwait).
+❌ BAD 이 예제는 StreamReader.ReadToEnd를 사용하고 결과적으로 현재 스레드가 결과를 기다리도록 차단합니다. 이것은 비동기를 통한 동기화의 예입니다.
 
 ```C#
 public class MyController : Controller
@@ -37,6 +41,7 @@ public class MyController : Controller
 ```
 
 :white_check_mark: **GOOD** This example uses `StreamReader.ReadToEndAsync` and as a result, does not block the thread while reading.
+GOOD 이 예제는 StreamReader.ReadToEndAsync를 사용하므로 결과적으로 읽는 동안 스레드를 차단하지 않습니다.
 
 ```C#
 public class MyController : Controller
@@ -53,12 +58,18 @@ public class MyController : Controller
 ```
 
 :bulb:**NOTE: If the request is large it could lead to out of memory problems which can result in a Denial Of Service. See [this](#avoid-reading-large-request-bodies-or-response-bodies-into-memory) for more information.**
+💡참고: 요청이 크면 메모리 부족 문제가 발생하여 서비스 거부가 발생할 수 있습니다. 자세한 내용은 이것(Avoid reading large request)을 참조하십시오.
 
 ## Prefer using HttpRequest.ReadAsFormAsync() over HttpRequest.Form
+HttpRequest.Form보다 HttpRequest.ReadAsFormAsync() 사용 선호
+
 
 You should always prefer `HttpRequest.ReadAsFormAsync()` over `HttpRequest.Form`. The only time it is safe to use `HttpRequest.Form` is the form has already been read by a call to `HttpRequest.ReadAsFormAsync()` and the cached form value is being read using `HttpRequest.Form`. 
+항상 HttpRequest.Form보다 HttpRequest.ReadAsFormAsync()를 선호해야 합니다. HttpRequest.Form을 사용하는 것이 안전한 유일한 경우는 HttpRequest.ReadAsFormAsync()에 대한 호출로 이미 양식을 읽었고 HttpRequest.Form을 사용하여 캐시된 양식 값을 읽는 것입니다.
 
 ❌ **BAD** This example uses HttpRequest.Form uses [sync over async](AsyncGuidance.md#avoid-using-taskresult-and-taskwait) under the covers and can lead to thread pool starvation (in some cases).
+❌ BAD 이 예제는 HttpRequest를 사용합니다.
+
 
 ```C#
 public class MyController : Controller
@@ -76,7 +87,7 @@ public class MyController : Controller
 ```
 
 :white_check_mark: **GOOD** This example uses `HttpRequest.ReadAsFormAsync()` to read the form body asynchronously.
-
+✅ GOOD 이 예제는 HttpRequest.ReadAsFormAsync()를 사용하여 양식 본문을 비동기적으로 읽습니다.
 ```C#
 public class MyController : Controller
 {
@@ -93,27 +104,41 @@ public class MyController : Controller
 ```
 
 ## Avoid reading large request bodies or response bodies into memory
+큰 요청 본문이나 응답 본문을 메모리로 읽는 것을 피하십시오. 107
 
 In .NET any single object allocation greater than 85KB ends up in the large object heap ([LOH](https://blogs.msdn.microsoft.com/maoni/2006/04/19/large-object-heap/)). Large objects are expensive in 2 ways:
+NET에서 85KB보다 큰 단일 개체 할당은 큰 개체 힙에서 끝납니다([LOH](https://blogs.msdn.microsoft.com/maoni/2006/04/19/large-object-heap/)). . 큰 개체는 두 가지 면에서 비용이 많이 듭니다. 
 
 - The allocation cost is high because the memory for a newly allocated large object has to be cleared (the CLR guarantees that memory for all newly allocated objects is cleared)
+- 새로 할당된 대형 개체에 대한 메모리를 지워야 하기 때문에 할당 비용이 높습니다(CLR은 새로 할당된 모든 개체에 대한 메모리가 지워짐을 보장함).
 - LOH is collected with the rest of the heap (it requires a "full garbage collection" or Gen2 collection)
+- LOH는 나머지 힙과 함께 수집됩니다("전체 가비지 수집" 또는 Gen2 수집 필요) 
 
 This [blog post](https://adamsitnik.com/Array-Pool/#the-problem) describes the problem succinctly:
+이 [블로그 게시물](https://adamsitnik.com/Array-Pool/#the-problem)은 문제를 간결하게 설명합니다. 
 
 > When a large object is allocated, it’s marked as Gen 2 object. Not Gen 0 as for small objects. The consequences are that if you run out of memory in LOH, GC cleans up whole managed heap, not only LOH. So it cleans up Gen 0, Gen 1 and Gen 2 including LOH. This is called full garbage collection and is the most time-consuming garbage collection. For many applications, it can be acceptable. But definitely not for high-performance web servers, where few big memory buffers are needed to handle an average web request (read from a socket, decompress, decode JSON & more).
+> 큰 개체가 할당되면 Gen 2 개체로 표시됩니다. 작은 개체의 경우 Gen 0이 아닙니다. 결과적으로 LOH에서 메모리가 부족하면 GC가 LOH뿐만 아니라 전체 관리되는 힙을 정리합니다. 따라서 LOH를 포함하여 Gen 0, Gen 1 및 Gen 2를 정리합니다. 이를 전체 가비지 수집이라고 하며 가장 시간이 많이 소요되는 가비지 수집입니다. 많은 응용 프로그램에서 허용될 수 있습니다. 그러나 일반적인 웹 요청(소켓에서 읽기, 압축 해제, JSON 디코딩 등)을 처리하는 데 큰 메모리 버퍼가 거의 필요하지 않은 고성능 웹 서버에는 적합하지 않습니다.
 
 Naively storing a large request or response body into a single `byte[]` or `string` may result in quickly running out of space in the LOH and may cause performance issues for your application because of full GCs running. 
+큰 요청 또는 응답 본문을 단일 `byte[]` 또는 `string`에 순진하게 저장하면 LOH의 공간이 빠르게 부족해지고 전체 GC가 실행되기 때문에 애플리케이션에 성능 문제가 발생할 수 있습니다. 
 
 ## Use buffered and synchronous reads and writes as an alternative to asynchronous reading and writing
+## 비동기 읽기 및 쓰기의 대안으로 버퍼링 및 동기 읽기 및 쓰기 사용
 
 When using a serializer/de-serializer that only supports synchronous reads and writes (like JSON.NET) then prefer buffering the data into memory before passing data into the serializer/de-serializer.
+동기 읽기 및 쓰기(예: JSON.NET)만 지원하는 직렬 변환기/역직렬 변환기를 사용하는 경우 데이터를 직렬 변환기/역직렬 변환기에 전달하기 전에 데이터를 메모리에 버퍼링하는 것을 선호합니다.
 
 :bulb:**NOTE: If the request is large it could lead to out of memory problems which can result in a Denial Of Service. See [this](#avoid-reading-large-request-bodies-or-response-bodies-into-memory) for more information.**
+:bulb:**참고: 요청이 크면 메모리 부족 문제가 발생하여 서비스 거부가 발생할 수 있습니다. 자세한 내용은 [this](#avoid-reading-large-request-bodies-or-response-bodies-into-memory)를 참조하세요.** 133
 
 ## Do not store IHttpContextAccessor.HttpContext in a field
+## 필드에 IHttpContextAccessor.HttpContext를 저장하지 마십시오.
+
 
 The `IHttpContextAccessor.HttpContext` will return the `HttpContext` of the active request when accessed from the request thread. It should not be stored in a field or variable.
+`IHttpContextAccessor.HttpContext`는 요청 스레드에서 액세스할 때 활성 요청의 `HttpContext`를 반환합니다. 필드나 변수에 저장하면 안 됩니다.
+
 
 ❌ **BAD** This example stores the HttpContext in a field then attempts to use it later.
 
