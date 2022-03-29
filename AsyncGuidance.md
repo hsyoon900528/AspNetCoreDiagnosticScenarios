@@ -66,6 +66,8 @@ ASP.NET Core 애플리케이션에서 async void를 사용하는 것은 **항상
 
 ❌ **BAD** Async void methods can't be tracked and therefore unhandled exceptions can result in application crashes.
 
+ 비동기 무효 메서드는 추적할 수 없으므로 처리되지 않은 예외로 인해 애플리케이션이 충돌할 수 있습니다. 68
+
 ```C#
 public class MyController : Controller
 {
@@ -85,6 +87,8 @@ public class MyController : Controller
 ```
 
 :white_check_mark: **GOOD** `Task`-returning methods are better since unhandled exceptions trigger the [`TaskScheduler.UnobservedTaskException`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler.unobservedtaskexception?view=netframework-4.7.2).
+
+ `Task` - 처리되지 않은 예외가 [`TaskScheduler.UnobservedTaskException`]을 트리거하므로 메서드를 반환하는 것이 더 좋습니다.
 
 ```C#
 public class MyController : Controller
@@ -106,9 +110,19 @@ public class MyController : Controller
 
 ## Prefer `Task.FromResult` over `Task.Run` for pre-computed or trivially computed data
 
+미리 계산되거나 간단하게 계산된 데이터의 경우 'Task.Run'보다 'Task.FromResult'를 선호합니다.
+
+
 For pre-computed results, there's no need to call `Task.Run`, that will end up queuing a work item to the thread pool that will immediately complete with the pre-computed value. Instead, use `Task.FromResult`, to create a task wrapping already computed data.
 
+미리 계산된 결과의 경우 'Task.Run'을 호출할 필요가 없습니다. 그러면 작업 항목이 미리 계산된 값으로 즉시 완료되는 스레드 풀에 대기열에 추가됩니다. 대신 'Task.FromResult'를 사용하여 이미 계산된 데이터를 래핑하는 작업을 만듭니다.
+
+
+
 ❌ **BAD** This example wastes a thread-pool thread to return a trivially computed value.
+
+❌ **BAD** 이 예제는 간단하게 계산된 값을 반환하기 위해 스레드 풀 스레드를 낭비합니다. 123
+
 
 ```C#
 public class MyLibrary
@@ -122,6 +136,9 @@ public class MyLibrary
 
 :white_check_mark: **GOOD** This example uses `Task.FromResult` to return the trivially computed value. It does not use any extra threads as a result.
 
+:white_check_mark: **GOOD** 이 예제에서는 `Task.FromResult`를 사용하여 간단하게 계산된 값을 반환합니다. 결과적으로 추가 스레드를 사용하지 않습니다. 138
+
+
 ```C#
 public class MyLibrary
 {
@@ -134,7 +151,13 @@ public class MyLibrary
 
 :bulb:**NOTE: Using `Task.FromResult` will result in a `Task` allocation. Using `ValueTask<T>` can completely remove that allocation.**
 
+:bulb:**참고: `Task.FromResult`를 사용하면 `Task` 할당이 발생합니다. `ValueTask<T>`를 사용하면 해당 할당을 완전히 제거할 수 있습니다.** 153
+
+
 :white_check_mark: **GOOD** This example uses a `ValueTask<int>` to return the trivially computed value. It does not use any extra threads as a result. It also does not allocate an object on the managed heap.
+
+:white_check_mark: **GOOD** 이 예제에서는 `ValueTask<int>`를 사용하여 간단하게 계산된 값을 반환합니다. 결과적으로 추가 스레드를 사용하지 않습니다. 또한 관리되는 힙에 개체를 할당하지 않습니다. 158
+
 
 ```C#
 public class MyLibrary
@@ -148,16 +171,36 @@ public class MyLibrary
 
 ## Avoid using Task.Run for long running work that blocks the thread
 
-Long running work in this context refers to a thread that's running for the lifetime of the application doing background work (like processing queue items, or sleeping and waking up to process some data). `Task.Run` will queue a work item to the thread pool. The assumption is that that work will finish quickly (or quickly enough to allow reusing that thread within some reasonable timeframe). Stealing a thread-pool thread for long-running work is bad since it takes that thread away from other work that could be done (timer callbacks, task continuations etc). Instead, spawn a new thread manually to do long running blocking work.
+## 스레드를 차단하는 장기 실행 작업에는 Task.Run을 사용하지 마십시오. 173
+
+
+Long running work in this context refers to a thread that's running for the lifetime of the application doing background work (like processing queue items, or sleeping and waking up to process some data). 이 컨텍스트에서 장기 실행 작업은 백그라운드 작업(예: 대기열 항목 처리 또는 일부 데이터 처리를 위해 잠자기 및 깨우기)을 수행하는 애플리케이션의 수명 동안 실행되는 스레드를 나타냅니다.
+
+ `Task.Run` will queue a work item to the thread pool. The assumption is that that work will finish quickly (or quickly enough to allow reusing that thread within some reasonable timeframe). 'Task.Run'은 작업 항목을 스레드 풀에 대기시킵니다. 작업이 빨리 완료될 것이라고 가정합니다(또는 합리적인 시간 내에 해당 스레드를 재사용할 수 있을 만큼 충분히 빨리).
+ 
+ Stealing a thread-pool thread for long-running work is bad since it takes that thread away from other work that could be done (timer callbacks, task continuations etc). Instead, spawn a new thread manually to do long running blocking work.  장기 실행 작업을 위해 스레드 풀 스레드를 훔치는 것은 수행할 수 있는 다른 작업(타이머 콜백, 작업 연속 등)에서 해당 스레드를 가져오기 때문에 좋지 않습니다. 대신, 장기 실행 차단 작업을 수행하려면 새 스레드를 수동으로 생성하십시오. 182
+
 
 :bulb: **NOTE: The thread pool grows if you block threads but it's bad practice to do so.**
 
+:bulb: **참고: 스레드를 차단하면 스레드 풀이 커지지만 그렇게 하는 것은 좋지 않습니다.** 185
+
+
 :bulb: **NOTE:`Task.Factory.StartNew` has an option `TaskCreationOptions.LongRunning` that under the covers creates a new thread and returns a Task that represents the execution. Using this properly requires several non-obvious parameters to be passed in to get the right behavior on all platforms.**
+
+참고:`Task.Factory.StartNew`에는 새 스레드를 만들고 실행을 나타내는 작업을 반환하는 `TaskCreationOptions.LongRunning` 옵션이 있습니다. 이것을 올바르게 사용하려면 모든 플랫폼에서 올바른 동작을 얻기 위해 몇 가지 명확하지 않은 매개변수를 전달해야 합니다.**
+
 
 :bulb: **NOTE: Don't use `TaskCreationOptions.LongRunning` with async code as this will create a new thread which will be destroyed after first `await`.**
 
+:bulb: **참고: 비동기 코드와 함께 `TaskCreationOptions.LongRunning`을 사용하지 마십시오. 이렇게 하면 첫 번째 `await` 후에 소멸될 새 스레드가 생성됩니다.** 195
+
+
 
 ❌ **BAD** This example steals a thread-pool thread forever, to execute queued work on a `BlockingCollection<T>`.
+
+❌ **BAD** 이 예제는 'BlockingCollection<T>'에서 대기 중인 작업을 실행하기 위해 스레드 풀 스레드를 영원히 훔칩니다. 201
+
 
 ```C#
 public class QueueProcessor
@@ -187,6 +230,9 @@ public class QueueProcessor
 ```
 
 :white_check_mark: **GOOD** This example uses a dedicated thread to process the message queue instead of a thread-pool thread.
+ 
+ :white_check_mark: **GOOD** 이 예에서는 스레드 풀 스레드 대신 전용 스레드를 사용하여 메시지 큐를 처리합니다. 233
+
 
 ```C#
 public class QueueProcessor
@@ -221,26 +267,46 @@ public class QueueProcessor
 ```
 
 ## Avoid using `Task.Result` and `Task.Wait`
+ `Task.Result` 및 `Task.Wait` 사용을 피하세요.
+
 
 There are very few ways to use `Task.Result` and `Task.Wait` correctly so the general advice is to completely avoid using them in your code. 
 
+ `Task.Result` 및 `Task.Wait`를 올바르게 사용하는 방법은 거의 없으므로 코드에서 사용하지 않는 것이 일반적입니다. 274
+
+
 ### :warning: Sync over `async`
 
-Using `Task.Result` or `Task.Wait` to block wait on an asynchronous operation to complete is *MUCH* worse than calling a truly synchronous API to block. This phenomenon is dubbed "Sync over async". Here is what happens at a very high level:
 
-- An asynchronous operation is kicked off.
-- The calling thread is blocked waiting for that operation to complete.
-- When the asynchronous operation completes, it unblocks the code waiting on that operation. This takes place on another thread.
+Using `Task.Result` or `Task.Wait` to block wait on an asynchronous operation to complete is *MUCH* worse than calling a truly synchronous API to block. This phenomenon is dubbed "Sync over async". Here is what happens at a very high level:
+ 
+ 'Task.Result' 또는 'Task.Wait'를 사용하여 비동기 작업이 완료될 때까지 대기를 차단하는 것은 진정한 동기 API를 호출하여 차단하는 것보다 *훨씬* 나쁩니다. 이 현상을 "동기화를 통한 동기화"라고 합니다. 다음은 매우 높은 수준에서 발생하는 일입니다. 282
+
+
+- An asynchronous operation is kicked off. - 비동기 작업이 시작됩니다. 287
+- The calling thread is blocked waiting for that operation to complete. - 호출 스레드는 해당 작업이 완료되기를 기다리는 동안 차단됩니다. 
+- When the asynchronous operation completes, it unblocks the code waiting on that operation. This takes place on another thread. 비동기 작업이 완료되면 해당 작업을 기다리고 있는 코드의 차단을 해제합니다. 이것은 다른 스레드에서 발생합니다.
 
 The result is that we need to use 2 threads instead of 1 to complete synchronous operations. This usually leads to [thread-pool starvation](https://blogs.msdn.microsoft.com/vancem/2018/10/16/diagnosing-net-core-threadpool-starvation-with-perfview-why-my-service-is-not-saturating-all-cores-or-seems-to-stall/) and results in service outages.
+ 
+결과는 동기 작업을 완료하기 위해 1개 대신 2개의 스레드를 사용해야 한다는 것입니다. 이것은 일반적으로 [스레드 풀 기아]로 이어집니다.
+
 
 ### :warning: Deadlocks
+ 경고 데드락
 
 The `SynchronizationContext` is an abstraction that gives application models a chance to control where asynchronous continuations run. ASP.NET (non-core), WPF and Windows Forms each have an implementation that will result in a deadlock if Task.Wait or Task.Result is used on the main thread. This behavior has led to a bunch of "clever" code snippets that show the "right" way to block waiting for a Task. The truth is, there's no good way to block waiting for a Task to complete.
+ 
+ 'SynchronizationContext'는 애플리케이션 모델에 비동기 연속 실행이 실행되는 위치를 제어할 수 있는 기회를 제공하는 추상화입니다. ASP.NET(비코어), WPF 및 Windows Forms에는 각각 Task.Wait 또는 Task.Result가 기본 스레드에서 사용되는 경우 교착 상태가 발생하는 구현이 있습니다. 이 동작으로 인해 작업 대기를 차단하는 "올바른" 방법을 보여주는 "영리한" 코드 조각이 많이 만들어졌습니다. 사실 태스크가 완료될 때까지 기다리는 것을 차단하는 좋은 방법은 없습니다.
+
 
 :bulb:**NOTE: ASP.NET Core does not have a `SynchronizationContext` and is not prone to the deadlock problem.**
+ :bulb:**참고: ASP.NET Core에는 'SynchronizationContext'가 없으며 교착 상태 문제가 발생하지 않습니다.** 304
+
 
 ❌ **BAD** The below are all examples that are, in one way or another, trying to avoid the deadlock situation but still succumb to "sync over async" problems.
+ ❌ **나쁜** 다음은 어떤 식으로든 교착 상태를 피하려고 하지만 여전히 "비동기를 통한 동기화" 문제에 굴복하는 모든 예입니다. 308
+
 
 ```C#
 public string DoOperationBlocking()
@@ -300,8 +366,12 @@ public string DoOperationBlocking7()
 ## Prefer `await` over `ContinueWith`
 
 `Task` existed before the async/await keywords were introduced and as such provided ways to execute continuations without relying on the language. Although these methods are still valid to use, we generally recommend that you prefer `async`/`await` to using `ContinueWith`. `ContinueWith` also does not capture the `SynchronizationContext` and as a result is actually semantically different to `async`/`await`.
+ 
+ 'Task'는 async/await 키워드가 도입되기 전에 존재했으며 언어에 의존하지 않고 연속 작업을 실행할 수 있는 방법을 제공했습니다. 이러한 방법은 여전히 유효하지만 일반적으로 `ContinueWith`를 사용하는 것보다 `async`/`await`를 선호하는 것이 좋습니다. `ContinueWith`는 `SynchronizationContext`도 캡처하지 않으며 결과적으로 실제로 `async`/`await`와 의미상 다릅니다.
+
 
 ❌ **BAD** The example uses `ContinueWith` instead of `async`
+❌ **BAD** 이 예에서는 `async` 대신 `ContinueWith`를 사용합니다. 374
 
 ```C#
 public Task<int> DoSomethingAsync()
@@ -314,6 +384,8 @@ public Task<int> DoSomethingAsync()
 ```
 
 :white_check_mark: **GOOD** This example uses the `await` keyword to get the result from `CallDependencyAsync`.
+ :white_check_mark: **GOOD** 이 예는 `await` 키워드를 사용하여 `CallDependencyAsync`에서 결과를 가져옵니다. 387
+
 
 ```C#
 public async Task<int> DoSomethingAsync()
@@ -326,10 +398,16 @@ public async Task<int> DoSomethingAsync()
 ## Always create `TaskCompletionSource<T>` with `TaskCreationOptions.RunContinuationsAsynchronously`
 
 `TaskCompletionSource<T>` is an important building block for libraries trying to adapt things that are not inherently awaitable to be awaitable via a `Task`. It is also commonly used to build higher-level operations (such as batching and other combinators) on top of existing asynchronous APIs. By default, `Task` continuations will run *inline* on the same thread that calls Try/Set(Result/Exception/Canceled). As a library author, this means having to understand that calling code can resume directly on your thread. This is extremely dangerous and can result in deadlocks, thread-pool starvation, corruption of state (if code runs unexpectedly) and more. 
+ 
+ `TaskCompletionSource<T>`는 본질적으로 대기할 수 없는 것을 `Task`를 통해 대기할 수 있도록 조정하려는 라이브러리의 중요한 빌딩 블록입니다. 또한 기존 비동기 API 위에 더 높은 수준의 작업(예: 일괄 처리 및 기타 결합기)을 빌드하는 데 일반적으로 사용됩니다. 기본적으로 `Task` 연속은 Try/Set(Result/Exception/Canceled)를 호출하는 동일한 스레드에서 *인라인*으로 실행됩니다. 라이브러리 작성자로서 이는 호출 코드가 스레드에서 직접 재개될 수 있음을 이해해야 함을 의미합니다. 이것은 매우 위험하며 교착 상태, 스레드 풀 기아, 상태 손상(코드가 예기치 않게 실행되는 경우) 등을 초래할 수 있습니다.
 
 Always use `TaskCreationOptions.RunContinuationsAsynchronously` when creating the `TaskCompletionSource<T>`. This will dispatch the continuation onto the thread pool instead of executing it inline.
+ 
+`TaskCompletionSource<T>`를 생성할 때는 항상 `TaskCreationOptions.RunContinuationsAsynchronously`를 사용하세요. 이렇게 하면 인라인으로 실행하는 대신 스레드 풀에 연속 작업을 디스패치합니다. 
 
 ❌ **BAD** This example does not use `TaskCreationOptions.RunContinuationsAsynchronously` when creating the `TaskCompletionSource<T>`.
+ 
+ ❌ **BAD** 이 예제에서는 `TaskCompletionSource<T>`를 생성할 때 `TaskCreationOptions.RunContinuationsAsynchronously`를 사용하지 않습니다. 409
 
 ```C#
 public Task<int> DoSomethingAsync()
@@ -348,6 +426,9 @@ public Task<int> DoSomethingAsync()
 ```
 
 :white_check_mark: **GOOD** This example uses `TaskCreationOptions.RunContinuationsAsynchronously` when creating the `TaskCompletionSource<T>`.
+ 
+ :white_check_mark: **GOOD** 이 예제에서는 `TaskCompletionSource<T>`를 생성할 때 `TaskCreationOptions.RunContinuationsAsynchronously`를 사용합니다. 429
+
 
 ```C#
 public Task<int> DoSomethingAsync()
@@ -365,7 +446,8 @@ public Task<int> DoSomethingAsync()
 }
 ```
 
-:bulb:**NOTE: There are 2 enums that look alike. [`TaskCreationOptions.RunContinuationsAsynchronously`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcreationoptions?view=netcore-2.0#System_Threading_Tasks_TaskCreationOptions_RunContinuationsAsynchronously) and [`TaskContinuationOptions.RunContinuationsAsynchronously`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcontinuationoptions?view=netcore-2.0). Be careful not to confuse their usage.** 
+:bulb:**NOTE:비슷하게 보이는 2개의 열거형이 있습니다. There are 2 enums that look alike. [`TaskCreationOptions.RunContinuationsAsynchronously`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcreationoptions?view=netcore-2.0#System_Threading_Tasks_TaskCreationOptions_RunContinuationsAsynchronously) and [`TaskContinuationOptions.RunContinuationsAsynchronously`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcontinuationoptions?view=netcore-2.0). Be careful not to confuse their usage.** 
+ 사용법을 혼동하지 않도록 주의하세요.
 
 ## Always dispose `CancellationTokenSource`(s) used for timeouts
 
