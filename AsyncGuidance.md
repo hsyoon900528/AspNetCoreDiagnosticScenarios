@@ -450,10 +450,16 @@ public Task<int> DoSomethingAsync()
  사용법을 혼동하지 않도록 주의하세요.
 
 ## Always dispose `CancellationTokenSource`(s) used for timeouts
+## 시간 초과에 사용된 `CancellationTokenSource`를 항상 폐기합니다. 453
+
 
 `CancellationTokenSource` objects that are used for timeouts (are created with timers or uses the `CancelAfter` method), can put pressure on the timer queue if not disposed.
+타임아웃에 사용되는 'CancellationTokenSource' 개체(타이머로 생성되거나 'CancelAfter' 메서드 사용)는 삭제되지 않으면 타이머 대기열에 압력을 가할 수 있습니다.
+
 
 ❌ **BAD** This example does not dispose the `CancellationTokenSource` and as a result the timer stays in the queue for 10 seconds after each request is made.
+❌ **BAD** 이 예는 'CancellationTokenSource'를 삭제하지 않으며 결과적으로 타이머는 각 요청이 이루어진 후 10초 동안 대기열에 머뭅니다. 461
+
 
 ```C#
 public async Task<Stream> HttpClientAsyncWithCancellationBad()
@@ -469,6 +475,8 @@ public async Task<Stream> HttpClientAsyncWithCancellationBad()
 ```
 
 :white_check_mark: **GOOD** This example disposes the `CancellationTokenSource` and properly removes the timer from the queue.
+:white_check_mark: **GOOD** 이 예는 'CancellationTokenSource'를 삭제하고 대기열에서 타이머를 적절하게 제거합니다. 478
+
 
 ```C#
 public async Task<Stream> HttpClientAsyncWithCancellationGood()
@@ -485,10 +493,16 @@ public async Task<Stream> HttpClientAsyncWithCancellationGood()
 ```
 
 ## Always flow `CancellationToken`(s) to APIs that take a `CancellationToken`
+## 항상 'CancellationToken'을 사용하는 API에 'CancellationToken'을 전달합니다. 496
+
 
 Cancellation is cooperative in .NET. Everything in the call-chain has to be explicitly passed the `CancellationToken` in order for it to work well. This means you need to explicitly pass the token into other APIs that take a token if you want cancellation to be most effective.
+ 
+ 취소는 .NET에서 협조적입니다. 콜 체인의 모든 것이 제대로 작동하려면 'CancellationToken'을 명시적으로 전달해야 합니다. 즉, 취소가 가장 효과적이려면 토큰을 사용하는 다른 API에 토큰을 명시적으로 전달해야 합니다.
 
 ❌ **BAD** This example neglects to pass the `CancellationToken` to `Stream.ReadAsync` making the operation effectively not cancellable.
+ 
+ ❌ **BAD** 이 예시는 `CancellationToken`을 `Stream.ReadAsync`에 전달하는 것을 무시하여 작업을 사실상 취소할 수 없도록 만듭니다. 504
 
 ```C#
 public async Task<string> DoAsyncThing(CancellationToken cancellationToken = default)
@@ -502,6 +516,9 @@ public async Task<string> DoAsyncThing(CancellationToken cancellationToken = def
 
 :white_check_mark: **GOOD** This example passes the `CancellationToken` into `Stream.ReadAsync`.
 
+:white_check_mark: **GOOD** 이 예시는 `CancellationToken`을 `Stream.ReadAsync`에 전달합니다. 518
+
+ 
 ```C#
 public async Task<string> DoAsyncThing(CancellationToken cancellationToken = default)
 {
@@ -513,12 +530,19 @@ public async Task<string> DoAsyncThing(CancellationToken cancellationToken = def
 ```
 
 ## Cancelling uncancellable operations
+ ## 취소할 수 없는 작업 취소 533
+
 
 One of the coding patterns that appears when doing asynchronous programming is cancelling an uncancellable operation. This usually means creating another task that completes when a timeout or `CancellationToken` fires, and then using `Task.WhenAny` to detect a complete or cancelled operation.
+ 
+ 비동기 프로그래밍을 수행할 때 나타나는 코딩 패턴 중 하나는 취소할 수 없는 작업을 취소하는 것입니다. 이는 일반적으로 타임아웃 또는 `CancellationToken`이 실행될 때 완료되는 다른 작업을 생성한 다음 `Task.WhenAny`를 사용하여 완료되거나 취소된 작업을 감지하는 것을 의미합니다.
 
 ### Using CancellationTokens
 
 ❌ **BAD** This example uses `Task.Delay(-1, token)` to create a `Task` that completes when the `CancellationToken` fires, but if it doesn't fire, there's no way to dispose the `CancellationTokenRegistration`. This can lead to a memory leak.
+ 
+ ❌ **BAD** 이 예제는 `Task.Delay(-1, token)`를 사용하여 `CancellationToken`이 실행될 때 완료되는 `Task`를 생성하지만 실행되지 않으면 ` CancellationTokenRegistration`. 이로 인해 메모리 누수가 발생할 수 있습니다. 543
+
 
 ```C#
 public static async Task<T> WithCancellation<T>(this Task<T> task, CancellationToken cancellationToken)
@@ -538,6 +562,9 @@ public static async Task<T> WithCancellation<T>(this Task<T> task, CancellationT
 ```
 
 :white_check_mark: **GOOD** This example disposes the `CancellationTokenRegistration` when one of the `Task(s)` complete.
+ 
+ :white_check_mark: **GOOD** 이 예는 `Task(s)` 중 하나가 완료되면 `CancellationTokenRegistration`을 삭제합니다. 565
+
 
 ```C#
 public static async Task<T> WithCancellation<T>(this Task<T> task, CancellationToken cancellationToken)
@@ -566,6 +593,9 @@ public static async Task<T> WithCancellation<T>(this Task<T> task, CancellationT
 ### Using a timeout
 
 ❌ **BAD** This example does not cancel the timer even if the operation successfully completes. This means you could end up with lots of timers, which can flood the timer queue. 
+ 
+ ❌ **BAD** 이 예제는 작업이 성공적으로 완료되어도 타이머를 취소하지 않습니다. 즉, 타이머 대기열이 플러딩될 수 있는 많은 타이머가 발생할 수 있습니다. 596
+
 
 ```C#
 public static async Task<T> TimeoutAfter<T>(this Task<T> task, TimeSpan timeout)
@@ -584,6 +614,9 @@ public static async Task<T> TimeoutAfter<T>(this Task<T> task, TimeSpan timeout)
 ```
 
 :white_check_mark: **GOOD** This example cancels the timer if the operation successfully completes.
+ 
+ :white_check_mark: **GOOD** 이 예는 작업이 성공적으로 완료되면 타이머를 취소합니다. 617
+
 
 ```C#
 public static async Task<T> TimeoutAfter<T>(this Task<T> task, TimeSpan timeout)
@@ -610,12 +643,20 @@ public static async Task<T> TimeoutAfter<T>(this Task<T> task, TimeSpan timeout)
 ```
 
 ## Always call `FlushAsync` on `StreamWriter`(s) or `Stream`(s) before calling `Dispose`
+ ## 'Dispose'를 호출하기 전에 항상 'StreamWriter' 또는 'Stream'에서 'FlushAsync'를 호출하세요. 646
+
 
 When writing to a `Stream` or `StreamWriter`, even if the asynchronous overloads are used for writing, the underlying data might be buffered. When data is buffered, disposing the `Stream` or `StreamWriter` via the `Dispose` method will synchronously write/flush, which results in blocking the thread and could lead to thread-pool starvation. Either use the asynchronous `DisposeAsync` method (for example via `await using`) or call `FlushAsync` before calling `Dispose`.
+ 
+ 'Stream' 또는 'StreamWriter'에 쓸 때 쓰기에 비동기 오버로드가 사용되더라도 기본 데이터가 버퍼링될 수 있습니다. 데이터가 버퍼링될 때 'Dispose' 메서드를 통해 'Stream' 또는 'StreamWriter'를 삭제하면 동기적으로 쓰기/플러시되어 스레드가 차단되고 스레드 풀 기아가 발생할 수 있습니다. 비동기식 `DisposeAsync` 메서드를 사용하거나(예: `await using`을 통해) `Dispose`를 호출하기 전에 `FlushAsync`를 호출하세요.
 
 :bulb:**NOTE: This is only problematic if the underlying subsystem does IO.**
+ :bulb:**참고: 기본 하위 시스템이 IO를 수행하는 경우에만 문제가 됩니다.** 654
+
 
 ❌ **BAD** This example ends up blocking the request by writing synchronously to the HTTP-response body.
+ ❌ **BAD** 이 예제는 HTTP 응답 본문에 동기적으로 작성하여 요청을 차단합니다. 658
+
 
 ```C#
 app.Run(async context =>
@@ -629,6 +670,8 @@ app.Run(async context =>
 ```
 
 :white_check_mark: **GOOD** This example asynchronously flushes any buffered data while disposing the `StreamWriter`.
+ :white_check_mark: **GOOD** 이 예는 `StreamWriter`를 삭제하는 동안 버퍼링된 모든 데이터를 비동기식으로 플러시합니다. 673
+
 
 ```C#
 app.Run(async context =>
@@ -642,6 +685,8 @@ app.Run(async context =>
 ```
 
 :white_check_mark: **GOOD** This example asynchronously flushes any buffered data before disposing the `StreamWriter`.
+ :white_check_mark: **GOOD** 이 예는 `StreamWriter`를 삭제하기 전에 버퍼링된 모든 데이터를 비동기식으로 플러시합니다. 688
+
 
 ```C#
 app.Run(async context =>
@@ -657,6 +702,8 @@ app.Run(async context =>
 ```
 
 ## Prefer `async`/`await` over directly returning `Task`
+ ## `Task`를 직접 반환하는 것보다 `async` /`를 선호합니다. 705
+
 
 There are benefits to using the `async`/`await` keyword instead of directly returning the `Task`:
 - Asynchronous and synchronous exceptions are normalized to always be asynchronous.
@@ -664,8 +711,16 @@ There are benefits to using the `async`/`await` keyword instead of directly retu
 - Diagnostics of asynchronous methods are easier (debugging hangs etc).
 - Exceptions thrown will be automatically wrapped in the returned `Task` instead of surprising the caller with an actual exception.
 - Async locals will not leak out of async methods. If you set an async local in a non-async method, it will "leak" out of that call.
+ 
+`Task`를 직접 반환하는 대신 `async`/`await` 키워드를 사용하면 이점이 있습니다.
+- 비동기 및 동기 예외는 항상 비동기로 정규화됩니다.
+- 코드 수정이 더 쉽습니다(예: 'using' 추가 고려).
+- 비동기 방식의 진단이 더 쉽습니다(디버깅 정지 등).
+- throw된 예외는 실제 예외로 호출자를 놀라게 하는 대신 반환된 'Task'에 자동으로 래핑됩니다.
+- 비동기 로컬은 비동기 메서드에서 누출되지 않습니다. 비동기가 아닌 메서드에서 비동기 로컬을 설정하면 해당 호출에서 "누출"됩니다. 
 
 ❌ **BAD** This example directly returns the `Task` to the caller.
+❌ **BAD** 이 예제는 'Task'를 호출자에게 직접 반환합니다. 723
 
 ```C#
 public Task<int> DoSomethingAsync()
@@ -675,6 +730,8 @@ public Task<int> DoSomethingAsync()
 ```
 
 :white_check_mark: **GOOD** This examples uses async/await instead of directly returning the Task.
+:white_check_mark: **GOOD** 이 예제에서는 Task를 직접 반환하는 대신 async/await를 사용합니다. 733
+
 
 ```C#
 public async Task<int> DoSomethingAsync()
@@ -684,6 +741,8 @@ public async Task<int> DoSomethingAsync()
 ```
 
 :bulb:**NOTE: There are performance considerations when using an async state machine over directly returning the `Task`. It's always faster to directly return the `Task` since it does less work but you end up changing the behavior and potentially losing some of the benefits of the async state machine.**
+ 
+ :bulb:**참고: 'Task'를 직접 반환하는 것보다 비동기 상태 머신을 사용할 때 성능 고려 사항이 있습니다. 'Task'를 직접 반환하는 것은 작업량이 적기 때문에 항상 더 빠르지만 결국 동작을 변경하고 잠재적으로 비동기 상태 머신의 일부 이점을 잃게 됩니다.**
 
 ## ConfigureAwait
 
@@ -692,10 +751,15 @@ TBD
 # Scenarios
 
 The above tries to distill general guidance, but doesn't do justice to the kinds of real-world situations that cause code like this to be written in the first place (bad code). This section tries to take concrete examples from real applications and turn them into something simple to help you relate these problems to existing codebases.
+ 
+ 위의 내용은 일반적인 지침을 추출하려고 시도하지만 처음부터 이와 같은 코드(나쁜 코드)를 작성하게 하는 실제 상황의 종류를 정의하지 않습니다. 이 섹션에서는 실제 응용 프로그램에서 구체적인 예를 가져와 이러한 문제를 기존 코드베이스와 연관시키는 데 도움이 되도록 간단한 것으로 바꾸려고 합니다.
 
 ## `Timer` callbacks
 
 ❌ **BAD** The `Timer` callback is `void`-returning and we have asynchronous work to execute. This example uses `async void` to accomplish it and as a result can crash the process if an exception occurs.
+ 
+ ❌ **BAD** `Timer` 콜백은 `void`를 반환하며 실행할 비동기 작업이 있습니다. 이 예제는 'async void'를 사용하여 이를 수행하며 결과적으로 예외가 발생하면 프로세스가 중단될 수 있습니다.
+
 
 ```C#
 public class Pinger
@@ -717,6 +781,9 @@ public class Pinger
 ```
 
 ❌ **BAD** This attempts to block in the `Timer` callback. This may result in thread-pool starvation and is an example of [sync over async](#warning-sync-over-async)
+ 
+ ❌ **BAD** 이것은 `Timer` 콜백에서 차단을 시도합니다. 이것은 스레드 풀 기아를 초래할 수 있으며 [sync over async](#warning-sync-over-async)의 예입니다. 784
+
 
 ```C#
 public class Pinger
@@ -737,7 +804,9 @@ public class Pinger
 }
 ```
 
-:white_check_mark: **GOOD** This example uses an `async Task`-based method and discards the `Task` in the `Timer` callback. If this method fails, it will not crash the process. Instead, it will fire the [`TaskScheduler.UnobservedTaskException`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler.unobservedtaskexception?view=netframework-4.7.2) event.
+:white_check_mark: **GOOD** This example uses an `async Task`-based method and discards the `Task` in the `Timer` callback. If this method fails, it will not crash the process. :white_check_mark: **GOOD** 이 예제는 `async Task` 기반 메소드를 사용하고 `Timer` 콜백에서 `Task`를 버립니다. 이 방법이 실패하면 프로세스가 중단되지 않습니다.
+ 
+ Instead, it will fire the [`TaskScheduler.UnobservedTaskException`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler.unobservedtaskexception?view=netframework-4.7.2) event. 대신 이걸 참조하세요.
 
 ```C#
 public class Pinger
@@ -765,10 +834,18 @@ public class Pinger
 ```
 
 ## Implicit `async void` delegates
+ ## 암시적 `async void` 대리자 837
+
 
 Imagine a `BackgroundQueue` with a `FireAndForget` that takes a callback. This method will execute the callback at some time in the future.
+ 
+ 콜백을 받는 `FireAndForget`이 있는 `BackgroundQueue`를 상상해 보세요. 이 메소드는 미래의 어느 시점에서 콜백을 실행할 것입니다. 841
+
 
 ❌ **BAD** This will force callers to either block in the callback or use an `async void` delegate.
+ 
+ ❌ **나쁜** 이것은 호출자가 콜백에서 차단하거나 `async void` 대리자를 사용하도록 강제합니다. 846
+
 
 ```C#
 public class BackgroundQueue
@@ -778,6 +855,9 @@ public class BackgroundQueue
 ```
 
 ❌ **BAD** This calling code is creating an `async void` method implicitly. The compiler fully supports this today.
+ 
+ ❌ **BAD** 이 호출 코드는 암시적으로 `async void` 메서드를 생성합니다. 컴파일러는 오늘날 이를 완벽하게 지원합니다. 858
+
 
 ```C#
 public class Program
@@ -796,6 +876,9 @@ public class Program
 ```
 
 :white_check_mark: **GOOD** This BackgroundQueue implementation offers both sync and `async` callback overloads.
+ 
+ :white_check_mark: **GOOD** 이 BackgroundQueue 구현은 동기화 및 '비동기' 콜백 오버로드를 모두 제공합니다. 879
+
 
 ```C#
 public class BackgroundQueue
@@ -808,8 +891,13 @@ public class BackgroundQueue
 ## `ConcurrentDictionary.GetOrAdd`
 
 It's pretty common to cache the result of an asynchronous operation and `ConcurrentDictionary` is a good data structure for doing that. `GetOrAdd` is a convenience API for trying to get an item if it's already there or adding it if it isn't. The callback is synchronous so it's tempting to write code that uses `Task.Result` to produce the value of an asynchronous process but that can lead to thread-pool starvation.
+ 
+ 비동기 작업의 결과를 캐시하는 것은 매우 일반적이며 'ConcurrentDictionary'는 이를 수행하는 데 좋은 데이터 구조입니다. 'GetOrAdd'는 항목이 이미 있는 경우 항목을 가져오거나 없는 경우 추가하는 편리한 API입니다. 콜백은 동기식이므로 'Task.Result'를 사용하여 비동기식 프로세스의 값을 생성하는 코드를 작성하고 싶지만 스레드 풀 기아로 이어질 수 있습니다.
 
 ❌ **BAD** This may result in thread-pool starvation since we're blocking the request thread if the person data is not cached.
+ 
+ ❌ **나쁜** 개인 데이터가 캐시되지 않은 경우 요청 스레드를 차단하므로 스레드 풀 기아가 발생할 수 있습니다. 898
+
 
 ```C#
 public class PersonController : Controller
@@ -833,8 +921,14 @@ public class PersonController : Controller
 ```
 
 :white_check_mark: **GOOD** This implementation won't result in thread-pool starvation since we're storing a task instead of the result itself.
+ 
+ :white_check_mark: **GOOD** 이 구현은 결과 자체 대신 작업을 저장하기 때문에 스레드 풀 기아를 초래하지 않습니다. 924
+
 
 :warning: `ConcurrentDictionary.GetOrAdd`, when accessed concurrently, may run the value-constructing delegate multiple times. This can result in needlessly kicking off the same potentially expensive computation multiple times.
+ 
+ :경고: `ConcurrentDictionary.GetOrAdd`는 동시에 액세스할 때 값 구성 대리자를 여러 번 실행할 수 있습니다. 이로 인해 잠재적으로 비용이 많이 드는 동일한 계산을 여러 번 불필요하게 시작해야 할 수 있습니다. 929
+
 
 ```C#
 public class PersonController : Controller
@@ -858,6 +952,8 @@ public class PersonController : Controller
 ```
 
 :white_check_mark: **GOOD** This implementation prevents the delegate from being executed multiple times, by using the `async` lazy pattern: even if construction of the AsyncLazy instance happens multiple times ("cheap" operation), the delegate will be called only once.
+ 
+ :white_check_mark: **GOOD** 이 구현은 `async` 지연 패턴을 사용하여 대리자가 여러 번 실행되는 것을 방지합니다. AsyncLazy 인스턴스 생성이 여러 번 발생하더라도("저렴한" 작업) 대리자가 호출됩니다. 한 번만.
 
 ```C#
 public class PersonController : Controller
@@ -890,8 +986,14 @@ public class PersonController : Controller
 ## Constructors
 
 Constructors are synchronous. If you need to initialize some logic that may be asynchronous, there are a couple of patterns for dealing with this.
+ 
+ 생성자는 동기식입니다. 비동기일 수 있는 일부 논리를 초기화해야 하는 경우 이를 처리하기 위한 몇 가지 패턴이 있습니다. 989
+
 
 Here's an example of using a client API that needs to connect asynchronously before use.
+ 
+ 다음은 사용하기 전에 비동기식으로 연결해야 하는 클라이언트 API를 사용하는 예입니다. 994
+
 
 ```C#
 public interface IRemoteConnectionFactory
@@ -908,6 +1010,9 @@ public interface IRemoteConnection
 
 
 ❌ **BAD** This example uses `Task.Result` to get the connection in the constructor. This could lead to thread-pool starvation and deadlocks.
+ 
+ ❌ **BAD** 이 예제는 `Task.Result`를 사용하여 생성자에서 연결을 가져옵니다. 이로 인해 스레드 풀 기아 및 교착 상태가 발생할 수 있습니다. 1013
+
 
 ```C#
 public class Service : IService
@@ -922,6 +1027,9 @@ public class Service : IService
 ```
 
 :white_check_mark: **GOOD** This implementation uses a static factory pattern in order to allow asynchronous construction:
+ 
+ :white_check_mark: **GOOD** 이 구현은 비동기식 구성을 허용하기 위해 정적 팩토리 패턴을 사용합니다. 1030
+
 
 ```C#
 public class Service : IService
@@ -943,8 +1051,13 @@ public class Service : IService
 ## WindowsIdentity.RunImpersonated
 
 This API runs the specified action as the impersonated Windows identity. An [asynchronous version of the callback](https://docs.microsoft.com/en-us/dotnet/api/system.security.principal.windowsidentity.runimpersonatedasync) was introduced in .NET 5.0.
+ 
+ 이 API는 지정된 작업을 가장한 Windows ID로 실행합니다. [콜백의 비동기 버전](https://docs.microsoft.com/en-us/dotnet/api/system.security.principal.windowsidentity.runimpersonatedasync)이 .NET 5.0에 도입되었습니다.
 
 ❌ **BAD** This example tries to execute the query asynchronously, and then wait for it outside of the call to `RunImpersonated`. This will throw because the query might be executing outside of the impersonation context.
+ 
+ ❌ **BAD** 이 예제는 쿼리를 비동기적으로 실행하려고 시도한 다음 `RunImpersonated` 호출 외부에서 대기합니다. 쿼리가 가장 컨텍스트 외부에서 실행 중일 수 있으므로 이 오류가 발생합니다. 1058
+
 
 ```C#
 public async Task<IEnumerable<Product>> GetDataImpersonatedAsync(SafeAccessTokenHandle safeAccessTokenHandle)
@@ -961,6 +1074,9 @@ public async Task<IEnumerable<Product>> GetDataImpersonatedAsync(SafeAccessToken
 ```
 
 ❌ **BAD** This example uses `Task.Result` to get the connection in the constructor. This could lead to thread-pool starvation and deadlocks.
+ 
+ ❌ **BAD** 이 예제는 `Task.Result`를 사용하여 생성자에서 연결을 가져옵니다. 이로 인해 스레드 풀 기아 및 교착 상태가 발생할 수 있습니다. 1077
+
 
 ```C#
 public IEnumerable<Product> GetDataImpersonated(SafeAccessTokenHandle safeAccessTokenHandle)
@@ -972,6 +1088,9 @@ public IEnumerable<Product> GetDataImpersonated(SafeAccessTokenHandle safeAccess
 ```
 
 :white_check_mark: **GOOD** This example awaits the result of `RunImpersonated` (the delegate is `Func<Task<IEnumerable<Product>>>` in this case). It is the recommended practice in frameworks earlier than .NET 5.0.
+ 
+ :white_check_mark: **GOOD** 이 예제는 `RunImpersonated`의 결과를 기다립니다(이 경우 대리자는 `Func<Task<IEnumerable<Product>>>`입니다). .NET 5.0 이전의 프레임워크에서 권장되는 방법입니다. 1091
+
 
 ```C#
 public async Task<IEnumerable<Product>> GetDataImpersonatedAsync(SafeAccessTokenHandle safeAccessTokenHandle)
@@ -983,6 +1102,9 @@ public async Task<IEnumerable<Product>> GetDataImpersonatedAsync(SafeAccessToken
 ```
 
 :white_check_mark: **GOOD** This example uses the asynchronous `RunImpersonatedAsync` function and awaits its result. It is available in .NET 5.0 or newer.
+ 
+ :white_check_mark: **GOOD** 이 예는 비동기 'RunImpersonatedAsync' 함수를 사용하고 결과를 기다립니다. .NET 5.0 이상에서 사용할 수 있습니다. 1105
+
 
 ```C#
 public async Task<IEnumerable<Product>> GetDataImpersonatedAsync(SafeAccessTokenHandle safeAccessTokenHandle)
