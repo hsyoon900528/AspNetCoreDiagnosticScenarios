@@ -22,16 +22,19 @@
  
 # Asynchronous Programming
 
-Asynchronous programming has been around for several years on the .NET platform but has historically been very difficult to do well. Since the introduction of async/await
-in C# 5 asynchronous programming has become mainstream. Modern frameworks (like ASP.NET Core) are fully asynchronous and it's very hard to avoid the async keyword when writing
-web services. As a result, there's been lots of confusion on the best practices for async and how to use it properly. This section will try to lay out some guidance with examples of bad and good patterns of how to write asynchronous code.
+Asynchronous programming has been around for several years on the .NET platform but has historically been very difficult to do well. Since the introduction of async/await in C# 5 asynchronous programming has become mainstream. Modern frameworks (like ASP.NET Core) are fully asynchronous and it's very hard to avoid the async keyword when writing web services. As a result, there's been lots of confusion on the best practices for async and how to use it properly. This section will try to lay out some guidance with examples of bad and good patterns of how to write asynchronous code.
 
-## Asynchrony is viral 
+비동기 프로그래밍은 .NET 플랫폼에서 몇 년 동안 사용되었지만 역사적으로 잘 수행하기가 매우 어려웠습니다. C# 5에 async/await가 도입된 이후로 비동기 프로그래밍이 주류가 되었습니다. ASP.NET Core와 같은 최신 프레임워크는 완전히 비동기적이며 웹 서비스를 작성할 때 async 키워드를 피하기가 매우 어렵습니다. 결과적으로 비동기에 대한 모범 사례와 올바르게 사용하는 방법에 대해 많은 혼란이 있었습니다. 이 섹션에서는 비동기 코드를 작성하는 방법에 대한 나쁜 패턴과 좋은 패턴의 예와 함께 몇 가지 지침을 제시하려고 합니다.
+## Asynchrony is viral 모든 호출 비동기화
 
 Once you go async, all of your callers **SHOULD** be async, since efforts to be async amount to nothing unless the entire callstack is async. In many cases, being partially async can be worse than being entirely synchronous. Therefore it is best to go all in, and make everything async at once.
 
+일단 비동기화되면 전체 호출 스택이 비동기화되지 않는 한 비동기화하려는 노력이 아무 소용이 없기 때문에 모든 호출자는 비동기화되어야 합니다 **SHOULD**.많은 경우에 부분적으로 비동기화하는 것이 완전히 동기화되는 것보다 나쁠 수 있습니다. 따라서 올인하고 모든 것을 한 번에 비동기화하는 것이 가장 좋습니다.
+
+
 ❌ **BAD** This example uses the `Task.Result` and as a result blocks the current thread to wait for the result. This is an example of [sync over async](#avoid-using-taskresult-and-taskwait).
 
+❌ **BAD** 이 예제는 `Task.Result`를 사용하며 결과적으로 현재 스레드가 결과를 기다리도록 차단합니다. [sync over async](#avoid-using-taskresult-and-taskwait)의 예입니다. 36
 ```C#
 public int DoSomethingAsync()
 {
@@ -42,6 +45,9 @@ public int DoSomethingAsync()
 
 :white_check_mark: **GOOD** This example uses the await keyword to get the result from `CallDependencyAsync`.
 
+:white_check_mark: **GOOD** 이 예제에서는 await 키워드를 사용하여 `CallDependencyAsync`에서 결과를 가져옵니다. 47
+
+
 ```C#
 public async Task<int> DoSomethingAsync()
 {
@@ -50,9 +56,13 @@ public async Task<int> DoSomethingAsync()
 }
 ```
 
-## Async void
+## Async void 형식 금지
 
 Use of async void in ASP.NET Core applications is **ALWAYS** bad. Avoid it, never do it. Typically, it's used when developers are trying to implement fire and forget patterns triggered by a controller action. Async void methods will crash the process if an exception is thrown. We'll look at more of the patterns that cause developers to do this in ASP.NET Core applications but here's a simple example:
+
+ASP.NET Core 애플리케이션에서 async void를 사용하는 것은 **항상** 좋지 않습니다. 피하세요, 절대 하지 마세요. 일반적으로 개발자가 컨트롤러 작업에 의해 트리거된 화재 및 잊어버리기 패턴을 구현하려고 할 때 사용됩니다.비동기 void 메서드는 예외가 발생하면 프로세스를 중단시킵니다. 개발자가 ASP.NET Core 애플리케이션에서 이 작업을 수행하도록 하는 더 많은 패턴을 살펴보겠지만 다음은 간단한 예입니다.
+
+
 
 ❌ **BAD** Async void methods can't be tracked and therefore unhandled exceptions can result in application crashes.
 
